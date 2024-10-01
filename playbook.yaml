@@ -1,0 +1,131 @@
+---
+
+#Install Apache Web Server on Amazon Linux machine
+- hosts: all
+  become: yes
+
+  vars:
+    source_file: /home/tereza/html/index.html
+    dest_file: /var/www/html/index.html
+
+  tasks:
+  - name: Install Apache web server
+    yum: name=httpd state=latest
+
+  - name: Copy file from local to remote server
+    copy: src={{ source_file }} dest={{ dest_file }} mode=0777
+
+  - name: Enable web server
+    service: name=httpd state=started enabled=yes
+
+
+#Install nginx on Ubuntu machine and load index.html from private repository
+- hosts: localhost
+
+  tasks:
+
+  - name: Install boto, boto3 and botocore
+    pip:
+      name: "{{ item }}"
+    loop:
+      - boto
+      - boto3
+      - botocore
+
+  - name: Create Security Group
+    amazon.aws.ec2_security_group:
+      name: ansiblesg
+      description: Some desc of sec group
+      vpc_id: vpc-0bef8832696d0e018
+      rules:
+        - rule_desc: SSH rule
+          proto: tcp
+          from_port: 22
+          to_port: 22
+          cidr_ip: 0.0.0.0/0
+        - rule_desc: HTTP rule
+          proto: tcp
+          from_port: 80
+          to_port: 80
+          cidr_ip: 0.0.0.0/0
+      
+
+  - name: Launching AWS instance using Ansible
+    amazon.aws.ec2_instance:
+      key_name: new
+      region: eu-north-1
+      instance_type: t3.micro
+      image_id: ami-04cdc91e49cb06165
+      security_group: ansiblesg
+      tags:
+        Name: Some
+    register: ec2
+
+  - name: Set fact for pub ip
+    set_fact:
+      public_ip: "{{ ec2.instances[0].public_ip_address }}"
+
+  - name: Print pub ip
+    debug:
+      var: public_ip
+
+  - name: Add new host
+    add_host:
+      name: ec2_host
+      ansible_host: "{{ public_ip }}"  
+      ansible_user: ubuntu
+      ansible_ssh_private_key_file: /home/tereza/Downloads/new.pem
+      ansible_connection: ssh
+      ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o ConnectTimeout=30'
+
+- hosts: ec2_host
+  become: yes
+  gather_facts: no
+  ignore_unreachable: true
+
+  vars:
+    source_file: /home/ubuntu/only-html/index.html
+    dest_path: /var/www/html/
+
+  tasks:
+
+  - name: Copy private key to remote server
+    copy:
+      src: /home/tereza/.ssh/id_ed25519
+      dest: /home/ubuntu/.ssh/
+      owner: ubuntu
+      group: ubuntu
+      mode: '0600'
+
+  - name: Add GitHub to known hosts
+    shell: ssh-keyscan -H github.com >> /home/ubuntu/.ssh/known_hosts
+    args:
+      executable: /bin/bash
+
+  - name: Test SSH connection to GitHub
+    shell: ssh -o StrictHostKeyChecking=no git@github.com
+    ignore_errors: yes
+    register: ssh_test_result
+
+  - debug:
+      var: ssh_test_result.stdout
+
+  - name: Clone private GitHub repository
+    ansible.builtin.git:
+      repo: 'git@github.com:tereza-arta/only-html.git'
+      dest: /home/ubuntu/only-html
+      key_file: /home/ubuntu/.ssh/id_ed25519
+
+  - name: Install nginx
+    apt:
+      name: nginx
+      state: latest
+
+  - name: Enable nginx
+    service:
+      name: nginx
+      state: started
+      enabled: yes
+
+  - name: Move html file 
+    command: mv {{ source_file }} {{ dest_path }}
