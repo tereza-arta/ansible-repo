@@ -65,7 +65,7 @@
     set_fact:
       public_ip: "{{ ec2.instances[0].public_ip_address }}"
 
-  - name: Print pub ip
+  - name: Print public_ip of EC2 server
     debug:
       var: public_ip
 
@@ -81,7 +81,6 @@
 - hosts: ec2_host
   become: yes
   gather_facts: no
-  ignore_unreachable: true
 
   vars:
     source_file: /home/ubuntu/only-html/index.html
