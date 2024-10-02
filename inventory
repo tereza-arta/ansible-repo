@@ -1,3 +1,11 @@
-[custom_servers]
-server1  ansible_host=16.171.2.65 ansible_user=ec2-user ansible_ssh_private_key_file=/home/tereza/Downloads/lin.pem
+[amazon_linux_srv]
+#13.60.196.102
 
+[ubuntu_srv]
+16.170.247.243
+
+[amazon_linux_srv:vars]
+ansible_user = ec2-user
+
+[ubuntu_srv:vars]
+ansible_user = ubuntu

@@ -1,0 +1,8 @@
+---
+# defaults file for rolles_example
+
+nginx_source: /home/ubuntu/only-html
+
+dest_file: /var/www/html/index.html
+
+dest_folder: /var/www/html/

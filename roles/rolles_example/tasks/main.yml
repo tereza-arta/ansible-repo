@@ -1,0 +1,65 @@
+---
+# tasks file for rolles_example
+
+- block: #Block for Amazon Linux machine
+
+  - name: Install Apache web server
+    yum: name=httpd state=latest
+
+  - name: Copy file from local to remote server
+    copy: src=index.html dest={{ dest_file }} mode=0777
+    notify: Restart Apache server
+
+  - name: Enable web server
+    service: name=httpd state=started enabled=yes
+
+  when: ansible_distribution == "Amazon"
+
+- block: #Block for Ubuntu machine
+    
+  - name: Copy private key to remote server
+    copy:
+      src: ~/.ssh/id_ed25519
+      dest: /home/ubuntu/.ssh/
+      owner: ubuntu
+      group: ubuntu
+      mode: '0600'
+
+  - name: Add GitHub to known hosts
+    shell: ssh-keyscan -H github.com >> /home/ubuntu/.ssh/known_hosts
+    args:
+      executable: /bin/bash
+
+  - name: Test SSH connection to GitHub
+    shell: ssh -o StrictHostKeyChecking=no git@github.com
+    ignore_errors: yes
+    register: ssh_test_result
+
+  - debug:
+      var: ssh_test_result.stdout
+
+  - name: Clone private GitHub repository
+    ansible.builtin.git:
+      repo: 'git@github.com:tereza-arta/only-html.git'
+      dest: /home/ubuntu/only-html
+      key_file: /home/ubuntu/.ssh/id_ed25519
+
+  - name: Install nginx
+    apt:
+      name: nginx
+      state: latest
+
+  - name: Enable nginx
+    service:
+      name: nginx
+      state: started
+      enabled: yes
+
+  - name: Move html file 
+    copy: src={{ nginx_source }}/{{ item }} {{ dest_folder }}
+    with_items:
+      - index.html
+      - style.css
+    notify: Restart nginx service
+
+  when: ansible_distribution == "Ubuntu"
